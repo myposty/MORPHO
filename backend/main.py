@@ -26,7 +26,7 @@ GUIDANCE = 2.0   # LCM usa guidance bajo (~1-2)
 pipe = None
 gpu_lock = asyncio.Lock()
 # Estado de carga, que el front consulta por /status.
-state = {"ready": False, "stage": "iniciando", "elapsed": 0, "progress": 0}
+state = {"ready": False, "stage": "iniciando", "elapsed": 0, "progress": 0, "error": None}
 
 
 @app.get("/status")
@@ -65,6 +65,21 @@ def _print_banner():
     c.print()
 
 
+def _print_no_gpu():
+    c = Console(force_terminal=True, width=72)
+    c.print()
+    c.print(Text("  ✖  No se detectó GPU NVIDIA", style="bold red"))
+    c.print(Text(
+        "  MORPHO requiere una GPU NVIDIA con CUDA. La API no se inició.",
+        style="grey58",
+    ))
+    c.print(Text(
+        "  Probá:  docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi",
+        style="grey42",
+    ))
+    c.print()
+
+
 def _load_model():
     """Carga el modelo en segundo plano para que uvicorn arranque ya y el front
     pueda mostrar progreso. La primera vez tambien lo descarga.
@@ -72,6 +87,15 @@ def _load_model():
     El % se ancla a hitos reales (modelo cargado=85, warmup=99, listo=100) y entre
     hito e hito avanza por tiempo (+1%/s) para que la barra no se quede quieta."""
     global pipe
+
+    # MORPHO requiere GPU NVIDIA. Sin CUDA, NO se carga el modelo ni corre la API.
+    if not torch.cuda.is_available():
+        state["stage"] = "sin GPU NVIDIA"
+        state["error"] = ("No se detectó una GPU NVIDIA con CUDA. "
+                          "MORPHO requiere una GPU NVIDIA para funcionar.")
+        _print_no_gpu()
+        return
+
     t0 = time.time()
     ceil = {"v": 85}  # techo actual hasta el proximo hito
 

@@ -10,8 +10,18 @@
 <body>
   <div id="app" class="h-dvh flex flex-col bg-zinc-950 text-zinc-100 antialiased">
 
+    <!-- ===== error: sin GPU NVIDIA ===== -->
+    <div v-if="loadError" class="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <div class="w-12 h-12 rounded-full border-2 border-rose-500/60 flex items-center justify-center text-rose-400 text-2xl">✖</div>
+      <div>
+        <p class="text-zinc-100 font-medium">No se puede iniciar</p>
+        <p class="text-zinc-400 text-sm mt-1 max-w-sm">{{ loadError }}</p>
+      </div>
+      <p class="text-zinc-600 text-xs">MORPHO solo funciona con GPU NVIDIA (CUDA).</p>
+    </div>
+
     <!-- ===== pantalla de carga del modelo ===== -->
-    <div v-if="!appReady" class="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center">
+    <div v-else-if="!appReady" class="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center">
       <div>
         <p class="text-zinc-200 font-medium">Preparando el modelo</p>
         <p class="text-zinc-500 text-sm mt-1">{{ loadStage }}</p>
@@ -92,6 +102,7 @@
         const loadStage = ref('iniciando...')
         const loadElapsed = ref(0)
         const loadProgress = ref(0)
+        const loadError = ref('')
 
         const prompt = ref('')
         const img = ref('')
@@ -113,6 +124,7 @@
           try {
             const r = await fetch('http://' + host + ':8000/status')
             const d = await r.json()
+            if (d.error) { loadError.value = d.error; return }  // sin GPU -> no reintentar
             loadStage.value = d.stage || 'cargando...'
             loadElapsed.value = d.elapsed || 0
             loadProgress.value = d.progress || 0
@@ -170,7 +182,7 @@
 
         onMounted(waitForBackend)
 
-        return { appReady, loadStage, loadElapsed, loadProgress,
+        return { appReady, loadStage, loadElapsed, loadProgress, loadError,
                  prompt, img, status, generating, dotClass, onInput, regenerate }
       }
     }).mount('#app')

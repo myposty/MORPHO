@@ -4,6 +4,10 @@ Genera imágenes con IA **en tiempo real mientras escribís**. Todo en Docker.
 
 Stack: DreamShaper-8-LCM (modelo) · FastAPI + WebSocket (backend) · Vue3 (frontend).
 
+> ⚠️ **Solo NVIDIA.** MORPHO requiere una **GPU NVIDIA con CUDA**. No funciona en CPU
+> ni en GPUs AMD. Si no se detecta una GPU NVIDIA, el backend **no arranca** y el front
+> muestra el error.
+
 ---
 
 ## 1. Requisito
