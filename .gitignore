@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# logs sueltos
+*.log
+
+# modelo descargado (se baja solo en el primer arranque, NO va al repo)
+backend/models/

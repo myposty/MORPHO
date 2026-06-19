@@ -1,0 +1,8 @@
+# Pinneado a versiones compatibles con torch 2.4 del base image.
+# diffusers nuevo (>=0.32) usa custom ops que torch 2.4 no puede parsear.
+diffusers==0.30.2
+transformers==4.44.2
+accelerate==0.33.0
+fastapi
+uvicorn[standard]
+rich

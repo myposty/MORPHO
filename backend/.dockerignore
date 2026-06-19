@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# el modelo se monta como volumen en runtime, NO va dentro de la imagen
+models/
