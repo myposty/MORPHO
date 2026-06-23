@@ -12,16 +12,17 @@ if ($LASTEXITCODE -eq 0) {
 }
 function Compose { if ($useV2) { docker compose @args } else { docker-compose @args } }
 
-Write-Host "MORPHO - detectando GPU NVIDIA..." -ForegroundColor Cyan
+Write-Host "MORPHO - detectando hardware..." -ForegroundColor Cyan
 
 # Test liviano: --gpus all dispara el hook NVIDIA. Si no hay GPU, falla (exit != 0).
+# (AMD/ROCm no corre en Windows, asi que aca es NVIDIA o CPU.)
 docker run --rm --gpus all hello-world *> $null
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "  GPU NVIDIA detectada -> levantando CON GPU" -ForegroundColor Green
+    Write-Host "  GPU NVIDIA detectada -> levantando con GPU" -ForegroundColor Green
     Compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 } else {
-    Write-Host "  Sin GPU NVIDIA accesible -> levanto igual (la app avisara en pantalla)" -ForegroundColor Yellow
+    Write-Host "  Sin GPU -> levantando en CPU (la generacion sera lenta)" -ForegroundColor Yellow
     Compose up -d --build
 }
 

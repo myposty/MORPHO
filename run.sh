@@ -12,14 +12,19 @@ else
   exit 1
 fi
 
-echo "MORPHO - detectando GPU NVIDIA..."
+echo "MORPHO - detectando hardware..."
 
-# Test liviano: --gpus all dispara el hook NVIDIA. Si no hay GPU, falla.
+# 1) NVIDIA: --gpus all dispara el hook NVIDIA. Si no hay, falla.
 if docker run --rm --gpus all hello-world >/dev/null 2>&1; then
-  echo "  GPU NVIDIA detectada -> levantando CON GPU"
+  echo "  GPU NVIDIA detectada -> levantando con GPU"
   $DC -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+# 2) AMD ROCm (experimental, solo Linux): /dev/kfd indica GPU AMD.
+elif [ -e /dev/kfd ]; then
+  echo "  GPU AMD (ROCm, experimental) detectada -> levantando con GPU"
+  $DC -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+# 3) Sin GPU: CPU (lento, pero funciona).
 else
-  echo "  Sin GPU NVIDIA accesible -> levanto igual (la app avisara en pantalla)"
+  echo "  Sin GPU -> levantando en CPU (la generacion sera lenta)"
   $DC up -d --build
 fi
 

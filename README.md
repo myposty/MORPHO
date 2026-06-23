@@ -4,42 +4,44 @@ Genera imágenes con IA **en tiempo real mientras escribís**. Todo en Docker.
 
 Stack: DreamShaper-8-LCM (modelo) · FastAPI + WebSocket (backend) · Vue3 (frontend).
 
-> ⚠️ **Solo NVIDIA.** MORPHO requiere una **GPU NVIDIA con CUDA**. No funciona en CPU
-> ni en GPUs AMD. Si no se detecta una GPU NVIDIA, el backend **no arranca** y el front
-> muestra el error.
+**Funciona en cualquier equipo.** El launcher detecta el hardware y arranca solo:
+
+| Hardware | Modo | Velocidad |
+|----------|------|-----------|
+| **GPU NVIDIA** (driver ≥ 525.60.13) | CUDA | ⚡ tiempo real |
+| **GPU AMD** (Linux + ROCm) | ROCm — *experimental* | ⚡ rápido |
+| **Sin GPU / gráfica integrada** | CPU (fallback automático) | 🐢 lento (pero anda) |
+
+La app **siempre levanta**; en el header te muestra qué está usando (GPU + modelo, o CPU).
 
 ---
 
 ## 1. Requisito
 
-- **GPU NVIDIA** con **driver ≥ 525.60.13** (lo que pide CUDA 12.1). Si el driver es más viejo, MORPHO lo detecta y te avisa que lo actualices.
-- **Docker** con soporte GPU. En Windows: Docker Desktop con WSL2 (activado por defecto).
-
-Probá que Docker ve tu GPU:
-
-```bash
-docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
-```
-
-Si lista tu placa, estás listo. **Sin GPU NVIDIA no funciona.**
+- **Docker** (en Windows: Docker Desktop con WSL2).
+- Para usar GPU NVIDIA: driver **≥ 525.60.13** + soporte GPU en Docker. Verificá con:
+  ```bash
+  docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
+  ```
+- Sin GPU no hace falta nada: corre en CPU (lento).
 
 ## 2. Arrancar
 
-Usá el launcher: detecta la GPU y levanta con ella (y nunca tira el error de Docker).
+Usá el launcher: detecta el hardware (NVIDIA / AMD / CPU) y levanta solo.
 
 ```bash
-# Windows
+# Windows (PowerShell)
 .\run.ps1
 
 # Linux / Mac
-sh run.sh
+chmod +x run.sh   # solo la primera vez, si no tiene permiso de ejecución
+./run.sh
 ```
 
 Abrí 👉 **http://localhost:8080**
 
-> También funciona `docker compose up -d` directo: arranca igual en cualquier máquina,
-> pero **sin usar la GPU** (el launcher es el que la activa). Si no hay GPU, la app
-> levanta y avisa en pantalla — no se cae.
+> `docker compose up -d` directo también funciona (arranca en cualquier máquina), pero
+> **sin GPU**: corre en CPU. El **launcher** es el que activa la GPU cuando la hay.
 
 La primera vez baja el modelo (~5GB) solo. Vas a ver una barra de carga; cuando llega a 100% ya podés usarlo.
 
@@ -61,8 +63,9 @@ docker compose up -d             # prender (ya no baja nada)
 
 ## Si algo falla
 
-- **`could not select device driver "nvidia"`** → falta soporte GPU en Docker (mirá el paso 1).
-- **Se queda en la barra de carga** → está bajando/cargando el modelo, esperá (1ra vez tarda 1-2 min).
+- **Dice "🐢 CPU" pero tenés GPU NVIDIA** → usá el launcher (`.\run.ps1` / `./run.sh`), no `docker compose up -d` pelado. Si igual no la toma, revisá el driver (≥ 525.60.13) y el soporte GPU de Docker (paso 1).
+- **Se queda en la barra de carga** → está bajando/cargando el modelo, esperá (1ra vez tarda 1-2 min; en CPU más).
+- **AMD**: es experimental y solo Linux con ROCm. Si no levanta, no está soportado tu equipo.
 - **El modelo descargado** queda en `backend/models/` (no se sube a GitHub).
 
 ## Tocar cosas

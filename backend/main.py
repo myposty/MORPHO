@@ -2,7 +2,6 @@ import asyncio
 import base64
 import io
 import shutil
-import subprocess
 import threading
 import time
 
@@ -22,13 +21,25 @@ app.add_middleware(
 )
 
 MODEL = "Lykon/dreamshaper-8-lcm"  # SD1.5 + LCM: chico, rapido, sin filtro
+MODEL_LABEL = "DreamShaper-8-LCM"
 STEPS = 7        # LCM: 4-8 pasos
 GUIDANCE = 2.0   # LCM usa guidance bajo (~1-2)
 
 pipe = None
 gpu_lock = asyncio.Lock()
 # Estado de carga, que el front consulta por /status.
-state = {"ready": False, "stage": "iniciando", "elapsed": 0, "progress": 0, "error": None}
+state = {
+    "ready": False,
+    "stage": "iniciando",
+    "elapsed": 0,
+    "progress": 0,
+    "device": None,        # "gpu" | "cpu"
+    "gpu_vendor": None,     # "nvidia" | "amd"
+    "gpu_name": None,       # nombre de la GPU si hay
+    "model": MODEL_LABEL,
+    "warn": None,           # aviso (ej. corriendo en CPU = lento)
+    "error": None,
+}
 
 
 @app.get("/status")
@@ -51,6 +62,15 @@ def _print_banner():
     c.print(Align.center(Text(art, style="bold cyan")))
     c.print(Align.center(Text("🦋  generación de imágenes con IA en tiempo real", style="cyan")))
     c.print(Rule(style="grey37"))
+    # Hardware en uso
+    if state["device"] == "gpu":
+        c.print(Text.assemble(
+            ("  ⚡ GPU ", "bold green"), (str(state["gpu_vendor"]).upper(), "bold green"),
+            ("  ·  ", "grey50"), (str(state["gpu_name"]), "white"),
+        ))
+    else:
+        c.print(Text("  🐢 CPU (sin GPU) — la generación es muy lenta", style="bold yellow"))
+    c.print(Text.assemble(("  ◆ modelo  ", "grey50"), (state["model"], "white")))
     c.print(Text.assemble(
         ("  ✓ ", "bold green"), ("servidor listo", "white"),
         ("    ▸  ", "grey50"), ("http://localhost:8080", "underline bright_blue"),
@@ -67,51 +87,34 @@ def _print_banner():
     c.print()
 
 
-def _print_no_gpu(detail: str):
-    c = Console(force_terminal=True, width=72)
-    c.print()
-    c.print(Text("  ✖  MORPHO no puede iniciar", style="bold red"))
-    c.print(Text("  " + detail, style="grey58"))
-    c.print(Text(
-        "  Test:  docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi",
-        style="grey42",
-    ))
-    c.print()
-
-
-def _gpu_diagnosis():
-    """Diagnostico de GPU. Devuelve (ok, error_detallado). Cubre los casos reales:
-    sin GPU, GPU con driver desactualizado/incompatible, o error de CUDA."""
-    driver = None
-    smi = shutil.which("nvidia-smi")
-    if smi:
-        try:
-            r = subprocess.run(
-                [smi, "--query-gpu=driver_version,name", "--format=csv,noheader"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if r.returncode == 0 and r.stdout.strip():
-                driver = r.stdout.strip().splitlines()[0].strip()
-        except Exception:
-            pass
-
+def _detect_device():
+    """Elige el mejor device y completa el estado de hardware.
+    GPU NVIDIA (CUDA) o AMD (ROCm) si esta; si no, CPU (lento) como fallback."""
     try:
-        cuda_ok = torch.cuda.is_available()
+        gpu = torch.cuda.is_available()
     except Exception:
-        cuda_ok = False
+        gpu = False
 
-    if cuda_ok:
-        return True, None
-    if driver:
-        # Hay GPU NVIDIA pero CUDA no levanta: casi siempre el driver esta viejo.
-        return False, (
-            f"GPU NVIDIA detectada ({driver}) pero el driver no es compatible con "
-            "CUDA 12.1. Actualizá el driver NVIDIA a la versión 525.60.13 o superior."
+    if gpu:
+        state["device"] = "gpu"
+        # torch ROCm expone torch.version.hip; torch CUDA expone torch.version.cuda.
+        state["gpu_vendor"] = "amd" if getattr(torch.version, "hip", None) else "nvidia"
+        try:
+            state["gpu_name"] = torch.cuda.get_device_name(0)
+        except Exception:
+            state["gpu_name"] = "GPU"
+        return "cuda", torch.float16
+
+    # Sin GPU: CPU. Avisamos el motivo (driver viejo vs sin GPU) y que va lento.
+    state["device"] = "cpu"
+    if shutil.which("nvidia-smi"):
+        state["warn"] = (
+            "Hay una GPU NVIDIA pero el driver no es compatible con CUDA 12.1 "
+            "(necesita 525.60.13+). Corriendo en CPU: la generación es muy lenta."
         )
-    return False, (
-        "No se detectó una GPU NVIDIA. MORPHO requiere una GPU NVIDIA con CUDA "
-        "(driver 525.60.13 o superior)."
-    )
+    else:
+        state["warn"] = "Sin GPU compatible: corriendo en CPU. La generación es muy lenta."
+    return "cpu", torch.float32
 
 
 def _load_model():
@@ -122,13 +125,7 @@ def _load_model():
     hito e hito avanza por tiempo (+1%/s) para que la barra no se quede quieta."""
     global pipe
 
-    # MORPHO requiere GPU NVIDIA con driver compatible. Si no, NO carga el modelo.
-    ok, err = _gpu_diagnosis()
-    if not ok:
-        state["stage"] = "sin GPU compatible"
-        state["error"] = err
-        _print_no_gpu(err)
-        return
+    device, dtype = _detect_device()
 
     t0 = time.time()
     ceil = {"v": 85}  # techo actual hasta el proximo hito
@@ -143,15 +140,16 @@ def _load_model():
     threading.Thread(target=tick, daemon=True).start()
 
     state["stage"] = "cargando modelo (la primera vez tambien lo descarga)"
-    p = AutoPipelineForText2Image.from_pretrained(MODEL, torch_dtype=torch.float16).to("cuda")
+    p = AutoPipelineForText2Image.from_pretrained(MODEL, torch_dtype=dtype).to(device)
     p.scheduler = LCMScheduler.from_config(p.scheduler.config)
-    # VAE en fp32: evita el NaN (imagen negra) del fp16. El unet sigue en fp16.
-    p.vae = p.vae.to(torch.float32)
+    if device == "cuda":
+        # VAE en fp32: evita el NaN (imagen negra) del fp16. En CPU ya es fp32.
+        p.vae = p.vae.to(torch.float32)
     state["progress"], ceil["v"] = 85, 99  # modelo cargado
 
     state["stage"] = "calentando"
     p(prompt="warmup", num_inference_steps=STEPS, guidance_scale=GUIDANCE,
-      height=512, width=512, output_type="latent")  # compila kernels CUDA
+      height=512, width=512, output_type="latent")  # compila kernels
 
     pipe = p
     state["progress"] = 100

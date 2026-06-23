@@ -1,0 +1,10 @@
+# Variante AMD (ROCm) - EXPERIMENTAL. Solo Linux con GPU AMD soportada por ROCm.
+# torch viene en la imagen base ROCm; el resto de deps se instala igual.
+FROM rocm/pytorch:latest
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

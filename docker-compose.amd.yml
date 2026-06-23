@@ -1,0 +1,15 @@
+# Variante AMD (ROCm) - EXPERIMENTAL. Solo Linux con GPU AMD soportada por ROCm.
+# Uso:  docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+# (el launcher run.sh lo hace solo si detecta /dev/kfd)
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.amd
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    security_opt:
+      - seccomp:unconfined

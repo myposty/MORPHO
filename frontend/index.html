@@ -17,7 +17,6 @@
         <p class="text-zinc-100 font-medium">No se puede iniciar</p>
         <p class="text-zinc-400 text-sm mt-1 max-w-sm">{{ loadError }}</p>
       </div>
-      <p class="text-zinc-600 text-xs">MORPHO solo funciona con GPU NVIDIA (CUDA).</p>
     </div>
 
     <!-- ===== pantalla de carga del modelo ===== -->
@@ -49,7 +48,15 @@
             MORPHO<span class="text-amber-400">.</span>
           </span>
         </div>
-        <span class="text-xs text-zinc-500">{{ status }}</span>
+        <div class="flex items-center gap-2.5 text-xs">
+          <span v-if="device === 'gpu'" class="text-emerald-400 font-medium" :title="gpuName">
+            ⚡ GPU {{ hwVendor }}
+          </span>
+          <span v-else-if="device === 'cpu'" class="text-amber-400 font-medium" :title="warn">
+            🐢 CPU · lento
+          </span>
+          <span class="text-zinc-600 hidden sm:inline">{{ model }}</span>
+        </div>
       </header>
 
       <main class="flex-1 min-h-0 flex items-center justify-center p-4 md:p-6">
@@ -104,6 +111,13 @@
         const loadProgress = ref(0)
         const loadError = ref('')
 
+        const device = ref(null)      // 'gpu' | 'cpu'
+        const gpuVendor = ref(null)   // 'nvidia' | 'amd'
+        const gpuName = ref(null)
+        const model = ref('')
+        const warn = ref('')
+        const hwVendor = computed(() => (gpuVendor.value || '').toUpperCase())
+
         const prompt = ref('')
         const img = ref('')
         const status = ref('conectando...')
@@ -124,7 +138,12 @@
           try {
             const r = await fetch('http://' + host + ':8000/status')
             const d = await r.json()
-            if (d.error) { loadError.value = d.error; return }  // sin GPU -> no reintentar
+            device.value = d.device
+            gpuVendor.value = d.gpu_vendor
+            gpuName.value = d.gpu_name
+            model.value = d.model || ''
+            warn.value = d.warn || ''
+            if (d.error) { loadError.value = d.error; return }  // error real -> no reintentar
             loadStage.value = d.stage || 'cargando...'
             loadElapsed.value = d.elapsed || 0
             loadProgress.value = d.progress || 0
@@ -183,6 +202,7 @@
         onMounted(waitForBackend)
 
         return { appReady, loadStage, loadElapsed, loadProgress, loadError,
+                 device, gpuName, model, warn, hwVendor,
                  prompt, img, status, generating, dotClass, onInput, regenerate }
       }
     }).mount('#app')
