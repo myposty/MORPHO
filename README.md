@@ -25,12 +25,21 @@ Si lista tu placa, estás listo. **Sin GPU NVIDIA no funciona.**
 
 ## 2. Arrancar
 
+Usá el launcher: detecta la GPU y levanta con ella (y nunca tira el error de Docker).
+
 ```bash
-docker compose build
-docker compose up -d
+# Windows
+.\run.ps1
+
+# Linux / Mac
+sh run.sh
 ```
 
 Abrí 👉 **http://localhost:8080**
+
+> También funciona `docker compose up -d` directo: arranca igual en cualquier máquina,
+> pero **sin usar la GPU** (el launcher es el que la activa). Si no hay GPU, la app
+> levanta y avisa en pantalla — no se cae.
 
 La primera vez baja el modelo (~5GB) solo. Vas a ver una barra de carga; cuando llega a 100% ya podés usarlo.
 

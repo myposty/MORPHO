@@ -8,13 +8,6 @@ services:
       - HF_HOME=/app/models
     volumes:
       - ./backend/models:/app/models
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   frontend:
     build: ./frontend

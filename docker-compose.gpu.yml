@@ -1,0 +1,10 @@
+# Override que agrega la GPU. Solo se usa cuando hay GPU NVIDIA (lo decide el launcher).
+services:
+  backend:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
