@@ -38,6 +38,9 @@ chmod +x run.sh   # solo la primera vez, si no tiene permiso de ejecución
 ./run.sh
 ```
 
+El build muestra una barra de progreso (0→100%). Para ver los logs completos del build:
+`.\run.ps1 -v` (Windows) / `./run.sh -v` (Linux/Mac).
+
 Abrí 👉 **http://localhost:8080**
 
 > `docker compose up -d` directo también funciona (arranca en cualquier máquina), pero
