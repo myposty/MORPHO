@@ -12,8 +12,8 @@ Stack: DreamShaper-8-LCM (modelo) · FastAPI + WebSocket (backend) · Vue3 (fron
 
 ## 1. Requisito
 
-Una **GPU NVIDIA** + **Docker** con soporte GPU.
-En Windows: Docker Desktop con WSL2 (viene activado por defecto).
+- **GPU NVIDIA** con **driver ≥ 525.60.13** (lo que pide CUDA 12.1). Si el driver es más viejo, MORPHO lo detecta y te avisa que lo actualices.
+- **Docker** con soporte GPU. En Windows: Docker Desktop con WSL2 (activado por defecto).
 
 Probá que Docker ve tu GPU:
 

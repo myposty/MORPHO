@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import io
+import shutil
+import subprocess
 import threading
 import time
 
@@ -65,19 +67,51 @@ def _print_banner():
     c.print()
 
 
-def _print_no_gpu():
+def _print_no_gpu(detail: str):
     c = Console(force_terminal=True, width=72)
     c.print()
-    c.print(Text("  ✖  No se detectó GPU NVIDIA", style="bold red"))
+    c.print(Text("  ✖  MORPHO no puede iniciar", style="bold red"))
+    c.print(Text("  " + detail, style="grey58"))
     c.print(Text(
-        "  MORPHO requiere una GPU NVIDIA con CUDA. La API no se inició.",
-        style="grey58",
-    ))
-    c.print(Text(
-        "  Probá:  docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi",
+        "  Test:  docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi",
         style="grey42",
     ))
     c.print()
+
+
+def _gpu_diagnosis():
+    """Diagnostico de GPU. Devuelve (ok, error_detallado). Cubre los casos reales:
+    sin GPU, GPU con driver desactualizado/incompatible, o error de CUDA."""
+    driver = None
+    smi = shutil.which("nvidia-smi")
+    if smi:
+        try:
+            r = subprocess.run(
+                [smi, "--query-gpu=driver_version,name", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                driver = r.stdout.strip().splitlines()[0].strip()
+        except Exception:
+            pass
+
+    try:
+        cuda_ok = torch.cuda.is_available()
+    except Exception:
+        cuda_ok = False
+
+    if cuda_ok:
+        return True, None
+    if driver:
+        # Hay GPU NVIDIA pero CUDA no levanta: casi siempre el driver esta viejo.
+        return False, (
+            f"GPU NVIDIA detectada ({driver}) pero el driver no es compatible con "
+            "CUDA 12.1. Actualizá el driver NVIDIA a la versión 525.60.13 o superior."
+        )
+    return False, (
+        "No se detectó una GPU NVIDIA. MORPHO requiere una GPU NVIDIA con CUDA "
+        "(driver 525.60.13 o superior)."
+    )
 
 
 def _load_model():
@@ -88,12 +122,12 @@ def _load_model():
     hito e hito avanza por tiempo (+1%/s) para que la barra no se quede quieta."""
     global pipe
 
-    # MORPHO requiere GPU NVIDIA. Sin CUDA, NO se carga el modelo ni corre la API.
-    if not torch.cuda.is_available():
-        state["stage"] = "sin GPU NVIDIA"
-        state["error"] = ("No se detectó una GPU NVIDIA con CUDA. "
-                          "MORPHO requiere una GPU NVIDIA para funcionar.")
-        _print_no_gpu()
+    # MORPHO requiere GPU NVIDIA con driver compatible. Si no, NO carga el modelo.
+    ok, err = _gpu_diagnosis()
+    if not ok:
+        state["stage"] = "sin GPU compatible"
+        state["error"] = err
+        _print_no_gpu(err)
         return
 
     t0 = time.time()
