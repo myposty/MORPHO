@@ -32,6 +32,8 @@ Usá el launcher: detecta el hardware (NVIDIA / AMD / CPU) y levanta solo.
 ```bash
 # Windows (PowerShell)
 .\run.ps1
+# si PowerShell lo bloquea por "execution policy", corré:
+powershell -ExecutionPolicy Bypass -File .\run.ps1
 
 # Linux / Mac
 chmod +x run.sh   # solo la primera vez, si no tiene permiso de ejecución

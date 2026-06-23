@@ -68,6 +68,10 @@ build_pretty() {
   fi
 }
 
+# Limpia contenedores previos (evita "container name already in use" y deja el
+# front nuevo en uso). down por nombre de proyecto, sin importar con que -f se creo.
+$DC down --remove-orphans >/dev/null 2>&1
+
 # Frontend: trivial y rapido, sin barra.
 printf '  preparando frontend...'
 if $DC build frontend >/dev/null 2>&1; then printf '\r\033[K'; else printf '\n  fallo el build del frontend\n'; exit 1; fi

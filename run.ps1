@@ -70,6 +70,10 @@ function Build-Pretty([string[]]$cargs) {
     }
 }
 
+# Limpia contenedores previos (evita "container name already in use" y deja el
+# front nuevo en uso). down por nombre de proyecto, sin importar con que -f se creo.
+Compose down --remove-orphans *> $null
+
 # Frontend: trivial y rapido, sin barra.
 Write-Host "  preparando frontend..." -NoNewline
 Compose build frontend *> $null
